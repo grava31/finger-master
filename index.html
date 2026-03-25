@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>THE FINGER MASTER</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cyan: #00fff7;
+    --green: #39ff14;
+    --red: #ff2d55;
+    --bg: #000000;
+    --core-color: var(--cyan);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: #000;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+    color: #fff;
+    cursor: none;
+    user-select: none;
+  }
+
+  #canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── HUD ── */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #timer {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    color: var(--cyan);
+    text-shadow: 0 0 12px var(--cyan), 0 0 30px var(--cyan);
+    transition: color 0.2s, text-shadow 0.2s;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  #timer.danger { color: var(--red); text-shadow: 0 0 12px var(--red), 0 0 40px var(--red); }
+  #phase-label {
+    font-size: clamp(0.55rem, 1.8vw, 0.75rem);
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    color: #fff;
+  }
+
+  /* ── COUNTDOWN ── */
+  #countdown-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 30px #fff;
+    pointer-events: none;
+    z-index: 60;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #countdown-overlay.show { opacity: 1; transform: scale(1); }
+
+  /* ── FLASH MESSAGE ── */
+  #flash {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 20;
+  }
+  #flash-text {
+    font-size: clamp(1.6rem, 6vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.25s, transform 0.25s;
+    text-align: center;
+  }
+  #flash-text.show { opacity: 1; transform: scale(1); }
+
+  /* ── SAFE ZONE RING ── */
+  #safe-zone {
+    position: fixed;
+    border: 2px dashed rgba(255,255,255,0.12);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: border-color 0.3s;
+    z-index: 5;
+    display: none;
+  }
+  #safe-zone.active { display: block; }
+  #safe-zone.breach { border-color: rgba(255,45,85,0.55); }
+
+  /* ── PENALTY BAR ── */
+  #penalty-bar {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    display: none;
+    z-index: 10;
+  }
+  #penalty-bar.active { display: block; }
+  #penalty-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    border-radius: 4px;
+    box-shadow: 0 0 8px var(--red);
+    transition: width 0.1s linear;
+  }
+
+  /* ── SCREEN FLASH (invert) ── */
+  #invert-flash {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+    mix-blend-mode: difference;
+  }
+
+  /* ── SCREENS ── */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    z-index: 50;
+    background: #000;
+    padding: 40px 32px;
+  }
+  .screen.hidden { display: none; }
+
+  #title-screen h1 {
+    font-size: clamp(2rem, 8vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-align: center;
+    background: linear-gradient(90deg, var(--cyan), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 20px var(--cyan));
+  }
+  #title-screen p {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.65rem, 2.5vw, 0.85rem);
+    opacity: 0.45;
+    letter-spacing: 0.15em;
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.8;
+  }
+  .btn {
+    background: transparent;
+    border: 1.5px solid var(--cyan);
+    color: var(--cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: clamp(0.7rem, 2.5vw, 0.9rem);
+    letter-spacing: 0.3em;
+    padding: 14px 36px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    box-shadow: 0 0 14px rgba(0,255,247,0.2);
+    border-radius: 2px;
+  }
+  .btn:hover, .btn:active {
+    background: var(--cyan);
+    color: #000;
+    box-shadow: 0 0 28px var(--cyan);
+    transform: scale(1.04);
+  }
+
+  #death-screen h2 {
+    font-size: clamp(1.8rem, 7vw, 3.5rem);
+    font-weight: 900;
+    color: var(--red);
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 24px var(--red);
+    text-align: center;
+  }
+  #death-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(2rem, 8vw, 4rem);
+    color: #fff;
+    letter-spacing: 0.1em;
+  }
+  #death-phase {
+    font-size: clamp(0.6rem, 2vw, 0.75rem);
+    letter-spacing: 0.3em;
+    opacity: 0.4;
+    text-align: center;
+  }
+
+  /* ── SCANLINE overlay ── */
+  #scanlines {
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,0.06) 3px,
+      rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 200;
+    opacity: 0.4;
+  }
+
+  /* ── CORNER DECORATIONS ── */
+  .corner {
+    position: fixed;
+    width: 20px; height: 20px;
+    border-color: rgba(255,255,255,0.1);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .corner.tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+  .corner.tr { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
+  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
+  .corner.br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="scanlines"></div>
+<div id="invert-flash"></div>
+<div id="countdown-overlay"></div>
+
+<div class="corner tl"></div><div class="corner tr"></div>
+<div class="corner bl"></div><div class="corner br"></div>
+
+<div id="hud">
+  <div id="timer">00:00</div>
+  <div id="phase-label">PHASE 1 · DRIFT</div>
+</div>
+
+<div id="safe-zone"></div>
+<div id="penalty-bar"><div id="penalty-fill"></div></div>
+<div id="flash"><div id="flash-text"></div></div>
+
+<div class="screen" id="title-screen">
+  <h1>THE FINGER<br>MASTER</h1>
+  <p>KEEP YOUR FINGER ON THE CORE.<br>IF YOU LIFT — YOU LOSE.<br>HOW LONG CAN YOU HOLD?</p>
+  <button class="btn" id="start-btn">BEGIN CHALLENGE</button>
+</div>
+
+<div class="screen hidden" id="death-screen">
+  <h2>YOU LOST</h2>
+  <div id="death-time">00:00</div>
+  <div id="death-phase"></div>
+  <button class="btn" id="retry-btn">TRY AGAIN</button>
+</div>
+
+<script>
+const PHASE = { DRIFT: 1, ANCHOR: 2, CHAOS: 3 };
+const PHASE_COLORS = { 1: '#00fff7', 2: '#39ff14', 3: '#ff2d55' };
+const SAFE_R = 60;
+const CORE_R = 34;
+
+let state = {
+  running: false,
+  countingDown: false,
+  phase: PHASE.DRIFT,
+  elapsed: 0,
+  touching: false,
+  touchOnCore: false,
+  fingerX: -999, fingerY: -999,
+  coreX: 0, coreY: 0,
+  velX: 0, velY: 0,
+  penaltyT: 0,
+  lastTS: 0,
+  invertScheduled: false,
+  nextInvertAt: 10 * 60 * 1000,
+};
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const timerEl = document.getElementById('timer');
+const phaseEl = document.getElementById('phase-label');
+const flashText = document.getElementById('flash-text');
+const countdownOverlay = document.getElementById('countdown-overlay');
+const safeZone = document.getElementById('safe-zone');
+const penaltyBar = document.getElementById('penalty-bar');
+const penaltyFill = document.getElementById('penalty-fill');
+const invertFlash = document.getElementById('invert-flash');
+const titleScreen = document.getElementById('title-screen');
+const deathScreen = document.getElementById('death-screen');
+const deathTimeEl = document.getElementById('death-time');
+const deathPhaseEl = document.getElementById('death-phase');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function fmt(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return String(m).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+}
+
+function vibrate(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+function showFlash(txt, color = '#fff', duration = 1600) {
+  flashText.textContent = txt;
+  flashText.style.color = color;
+  flashText.style.textShadow = `0 0 30px ${color}, 0 0 60px ${color}`;
+  flashText.classList.add('show');
+  setTimeout(() => flashText.classList.remove('show'), duration);
+}
+
+function setPhase(p) {
+  state.phase = p;
+  const c = PHASE_COLORS[p];
+  timerEl.style.color = c;
+  timerEl.style.textShadow = `0 0 12px ${c}, 0 0 30px ${c}`;
+
+  if (p === PHASE.DRIFT) {
+    phaseEl.textContent = 'PHASE 1 · DRIFT';
+    safeZone.classList.remove('active');
+    penaltyBar.classList.remove('active');
+  } else if (p === PHASE.ANCHOR) {
+    phaseEl.textContent = 'PHASE 2 · ANCHOR';
+    vibrate([80, 40, 80, 40, 80]);
+    showFlash('STAY CENTERED', PHASE_COLORS[2], 2000);
+    safeZone.style.width = safeZone.style.height = SAFE_R * 2 + 'px';
+    safeZone.style.left = '50%';
+    safeZone.style.top = '50%';
+    safeZone.classList.add('active');
+    penaltyBar.classList.add('active');
+  } else if (p === PHASE.CHAOS) {
+    phaseEl.textContent = 'PHASE 3 · CHAOS';
+    vibrate([200, 60, 200, 60, 200, 60, 300]);
+    showFlash('CORE BREACH', PHASE_COLORS[3], 2200);
+    safeZone.classList.remove('active');
+    penaltyBar.classList.remove('active');
+  }
+}
+
+function updateCore(dt) {
+  if (state.countingDown) return; // Core stays still during countdown
+
+  const W = canvas.width, H = canvas.height;
+  const CX = W / 2, CY = H / 2;
+  const p = state.phase;
+  const margin = CORE_R + 10;
+
+  if (p === PHASE.DRIFT) {
+    state.coreX += state.velX * dt * 0.06;
+    state.coreY += state.velY * dt * 0.06;
+    if (state.coreX < margin || state.coreX > W - margin) state.velX *= -1;
+    if (state.coreY < margin || state.coreY > H - margin) state.velY *= -1;
+  } else if (p === PHASE.ANCHOR) {
+    const intensity = Math.min((state.elapsed - 5 * 60000) / (25 * 60000), 1);
+    const pullStrength = 0.04 + intensity * 0.13;
+    if (!state.anchorTarget || Math.random() < 0.002 * dt) {
+      const side = Math.floor(Math.random() * 4);
+      if (side === 0) { state.anchorTarget = { x: margin, y: H / 2 + (Math.random() - 0.5) * H * 0.6 }; }
+      else if (side === 1) { state.anchorTarget = { x: W - margin, y: H / 2 + (Math.random() - 0.5) * H * 0.6 }; }
+      else if (side === 2) { state.anchorTarget = { x: W / 2 + (Math.random() - 0.5) * W * 0.6, y: margin }; }
+      else { state.anchorTarget = { x: W / 2 + (Math.random() - 0.5) * W * 0.6, y: H - margin }; }
+    }
+    const dx = state.anchorTarget.x - state.coreX;
+    const dy = state.anchorTarget.y - state.coreY;
+    state.velX += dx * pullStrength * dt * 0.005;
+    state.velY += dy * pullStrength * dt * 0.005;
+    state.velX *= 0.985;
+    state.velY *= 0.985;
+    state.coreX += state.velX;
+    state.coreY += state.velY;
+    state.coreX = Math.max(margin, Math.min(W - margin, state.coreX));
+    state.coreY = Math.max(margin, Math.min(H - margin, state.coreY));
+
+    const distFromCenter = Math.hypot(state.coreX - CX, state.coreY - CY);
+    if (distFromCenter > SAFE_R) {
+      state.penaltyT += dt;
+      const pct = Math.min(state.penaltyT / 2000, 1);
+      penaltyFill.style.width = (pct * 100) + '%';
+      safeZone.classList.add('breach');
+      timerEl.classList.add('danger');
+      if (state.penaltyT > 400) vibrate(30);
+      if (state.penaltyT >= 2000) { die(); return; }
+    } else {
+      state.penaltyT = 0;
+      penaltyFill.style.width = '0%';
+      safeZone.classList.remove('breach');
+      timerEl.classList.remove('danger');
+      if (state.touchOnCore) {
+        state.coreX += (CX - state.coreX) * 0.15;
+        state.coreY += (CY - state.coreY) * 0.15;
+      }
+    }
+  } else if (p === PHASE.CHAOS) {
+    const spd = 3.5;
+    if (!state.chaosTimer || (state.chaosTimer -= dt) <= 0) {
+      const angle = Math.random() * Math.PI * 2;
+      state.velX = Math.cos(angle) * spd;
+      state.velY = Math.sin(angle) * spd;
+      state.chaosTimer = 300 + Math.random() * 800;
+    }
+    state.coreX += state.velX * dt * 0.1;
+    state.coreY += state.velY * dt * 0.1;
+    if (state.coreX < margin || state.coreX > W - margin) { state.velX *= -1; state.coreX = Math.max(margin, Math.min(W - margin, state.coreX)); }
+    if (state.coreY < margin || state.coreY > H - margin) { state.velY *= -1; state.coreY = Math.max(margin, Math.min(H - margin, state.coreY)); }
+  }
+}
+
+const sparks = Array.from({length: 40}, () => ({
+  angle: Math.random() * Math.PI * 2,
+  r: CORE_R + Math.random() * 30,
+  speed: 0.5 + Math.random() * 1.5,
+  size: 1 + Math.random() * 2.5,
+  life: Math.random(),
+}));
+
+function updateSparks(dt) {
+  sparks.forEach(s => {
+    s.angle += s.speed * dt * 0.003;
+    s.life += dt * 0.001;
+    if (s.life > 1) {
+      s.life = 0;
+      s.r = CORE_R + Math.random() * 35;
+      s.speed = 0.5 + Math.random() * 1.5;
+      s.size = 1 + Math.random() * 2.5;
+    }
+  });
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const color = PHASE_COLORS[state.phase];
+
+  if (state.phase === PHASE.ANCHOR) {
+    const CX = W / 2, CY = H / 2;
+    const distOk = Math.hypot(state.coreX - CX, state.coreY - CY) <= SAFE_R;
+    ctx.beginPath();
+    ctx.arc(CX, CY, SAFE_R, 0, Math.PI * 2);
+    ctx.strokeStyle = distOk ? 'rgba(57,255,20,0.15)' : 'rgba(255,45,85,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  sparks.forEach(s => {
+    const sx = state.coreX + Math.cos(s.angle) * s.r;
+    const sy = state.coreY + Math.sin(s.angle) * s.r;
+    const alpha = (1 - s.life) * 0.9;
+    ctx.beginPath();
+    ctx.arc(sx, sy, s.size, 0, Math.PI * 2);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  const grd = ctx.createRadialGradient(state.coreX, state.coreY, CORE_R * 0.4, state.coreX, state.coreY, CORE_R * 3.5);
+  grd.addColorStop(0, color + '55');
+  grd.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(state.coreX, state.coreY, CORE_R * 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = grd;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(state.coreX, state.coreY, CORE_R, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 24;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const inner = ctx.createRadialGradient(state.coreX, state.coreY, 0, state.coreX, state.coreY, CORE_R);
+  inner.addColorStop(0, color + 'cc');
+  inner.addColorStop(0.5, color + '44');
+  inner.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(state.coreX, state.coreY, CORE_R, 0, Math.PI * 2);
+  ctx.fillStyle = inner;
+  ctx.fill();
+
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(state.coreX - 12, state.coreY); ctx.lineTo(state.coreX + 12, state.coreY);
+  ctx.moveTo(state.coreX, state.coreY - 12); ctx.lineTo(state.coreX, state.coreY + 12);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (state.touching && state.touchOnCore) {
+    ctx.beginPath();
+    ctx.arc(state.fingerX, state.fingerY, 22, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
+function loop(ts) {
+  if (!state.running) return;
+  const dt = Math.min(ts - state.lastTS, 50);
+  state.lastTS = ts;
+
+  if (!state.countingDown) {
+    state.elapsed += dt;
+
+    if (state.phase === PHASE.DRIFT && state.elapsed >= 5 * 60000) setPhase(PHASE.ANCHOR);
+    if (state.phase === PHASE.ANCHOR && state.elapsed >= 30 * 60000) setPhase(PHASE.CHAOS);
+
+    if (state.elapsed >= state.nextInvertAt) {
+      doInvert();
+      state.nextInvertAt += 10 * 60000;
+    }
+
+    const dist = Math.hypot(state.fingerX - state.coreX, state.fingerY - state.coreY);
+    state.touchOnCore = state.touching && dist <= CORE_R + 10;
+
+    if (!state.touchOnCore) { die(); return; }
+
+    updateCore(dt);
+    timerEl.textContent = fmt(state.elapsed);
+  }
+
+  updateSparks(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function doInvert() {
+  invertFlash.style.transition = 'none';
+  invertFlash.style.opacity = '1';
+  setTimeout(() => {
+    invertFlash.style.transition = 'opacity 0.15s';
+    invertFlash.style.opacity = '0';
+  }, 500);
+}
+
+function die() {
+  state.running = false;
+  vibrate([100, 40, 100, 40, 200]);
+  deathTimeEl.textContent = fmt(state.elapsed);
+  const phaseNames = { 1: 'PHASE 1 · DRIFT', 2: 'PHASE 2 · ANCHOR', 3: 'PHASE 3 · CHAOS' };
+  deathPhaseEl.textContent = 'FAILED DURING ' + phaseNames[state.phase];
+  deathScreen.classList.remove('hidden');
+}
+
+function runCountdown(callback) {
+  state.countingDown = true;
+  let count = 3;
+  countdownOverlay.textContent = count;
+  countdownOverlay.classList.add('show');
+  vibrate(50);
+
+  const itv = setInterval(() => {
+    count--;
+    if (count > 0) {
+      countdownOverlay.textContent = count;
+      vibrate(50);
+    } else if (count === 0) {
+      countdownOverlay.textContent = "GO!";
+      vibrate(200);
+    } else {
+      clearInterval(itv);
+      countdownOverlay.classList.remove('show');
+      state.countingDown = false;
+      callback();
+    }
+  }, 1000);
+}
+
+function initGameState() {
+  state = {
+    running: true,
+    countingDown: true,
+    phase: PHASE.DRIFT,
+    elapsed: 0,
+    touching: false,
+    touchOnCore: false,
+    fingerX: -999, fingerY: -999,
+    coreX: canvas.width / 2,
+    coreY: canvas.height / 2,
+    velX: 0, velY: 0,
+    penaltyT: 0,
+    lastTS: performance.now(),
+    anchorTarget: null,
+    chaosTimer: 0,
+    nextInvertAt: 10 * 60000,
+  };
+  const angle = Math.random() * Math.PI * 2;
+  state.velX = Math.cos(angle) * 1.2;
+  state.velY = Math.sin(angle) * 1.2;
+  
+  timerEl.className = '';
+  timerEl.textContent = "00:00";
+  timerEl.style.color = PHASE_COLORS[1];
+  phaseEl.textContent = 'PHASE 1 · DRIFT';
+  safeZone.classList.remove('active','breach');
+  penaltyBar.classList.remove('active');
+  penaltyFill.style.width = '0%';
+  
+  titleScreen.classList.add('hidden');
+  deathScreen.classList.add('hidden');
+}
+
+function startProcess() {
+  initGameState();
+  runCountdown(() => {
+    // Game officially starts logic update here
+    state.lastTS = performance.now();
+  });
+  requestAnimationFrame(loop);
+}
+
+function getPos(e) {
+  if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onDown(e) {
+  e.preventDefault();
+  const pos = getPos(e);
+  state.fingerX = pos.x;
+  state.fingerY = pos.y;
+  state.touching = true;
+}
+function onMove(e) {
+  e.preventDefault();
+  if (!state.touching) return;
+  const pos = getPos(e);
+  state.fingerX = pos.x;
+  state.fingerY = pos.y;
+}
+function onUp(e) {
+  e.preventDefault();
+  state.touching = false;
+  state.fingerX = -999;
+  state.fingerY = -999;
+  if (state.running && !state.countingDown) die();
+}
+
+canvas.addEventListener('touchstart', onDown, { passive: false });
+canvas.addEventListener('touchmove', onMove, { passive: false });
+canvas.addEventListener('touchend', onUp, { passive: false });
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+
+document.getElementById('start-btn').addEventListener('click', startProcess);
+document.getElementById('retry-btn').addEventListener('click', startProcess);
+
+draw();
+</script>
+</body>
+</html>
